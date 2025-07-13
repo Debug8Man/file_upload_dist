@@ -1,0 +1,18 @@
+{
+  "apps": [
+
+    {
+      "name": "file_upload",
+      "cwd": "./",
+      "script": "./dist/main.js",
+      "args": "../config/config_online.js",
+      "instance_var": "INSTANCE_ID",
+      "exec_mode": "cluster",
+      "error_file": "./logs/err_usdt_pm2.log",
+      "out_file": "./logs/out_usdt_pm2.log",
+      "pid_file": "./logs/pid_usdt_pm2.log",
+      "env": { "NODE_ENV": "development", "ID": "42" },
+      "watch": false
+    }
+  ]
+}
