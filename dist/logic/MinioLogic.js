@@ -35,7 +35,7 @@ class _MinioLogic {
         try {
             let url = await this.client.presignedGetObject(this.bucketName, objectName);
             url = url.split("?")[0];
-            return url;
+            return url.replaceAll(AppConfig_1.AppConfig.minio_endpoint, AppConfig_1.AppConfig.minio_domain);
         }
         catch (error) {
             logger_1.default.error(`Error getting file URL: ${error.message}`);
