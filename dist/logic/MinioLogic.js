@@ -6,6 +6,9 @@ const path = require("path");
 const logger_1 = require("./logger");
 const crypto = require("crypto");
 const AppConfig_1 = require("../AppConfig");
+const fs = require("fs");
+const os = require("os");
+const child_process_1 = require("child_process");
 class _MinioLogic {
     client;
     bucketName = 'uploads';
@@ -147,9 +150,13 @@ class _MinioLogic {
             throw error;
         }
     }
-    async generatePostPresignedUrl(fileName) {
+    async generatePostPresignedUrl(body) {
         try {
-            const objectName = `${Date.now()}-${fileName}`;
+            let objectName = `${Date.now()}-${body.fileName}`;
+            let isVideoExtension = body.fileName.endsWith(".mp4") || body.fileName.endsWith(".mov") || body.fileName.endsWith(".avi") || body.fileName.endsWith(".flv") || body.fileName.endsWith(".wmv") || body.fileName.endsWith(".mkv");
+            if (body.fileType == "video" && !isVideoExtension) {
+                objectName = `${Date.now()}-${body.fileName}.mp4`;
+            }
             const policy = this.client.newPostPolicy();
             policy.setContentType('application/octet-stream');
             policy.setBucket(this.bucketName);
@@ -165,6 +172,98 @@ class _MinioLogic {
             logger_1.default.error(`Error generating POST presigned URL: ${error.message}`);
             throw error;
         }
+    }
+    async generateVideoThumbnail(videoObjectName, timePosition = '00:00:01') {
+        try {
+            const thumbnailObjectName = `${videoObjectName}_thumbnail.jpg`;
+            const tempDir = os.tmpdir();
+            const uniqueId = Date.now();
+            const tempVideoPath = path.join(tempDir, `temp_video_${uniqueId}.mp4`);
+            const tempThumbnailPath = path.join(tempDir, `temp_thumbnail_${uniqueId}.jpg`);
+            try {
+                const videoStream = await this.client.getObject(this.bucketName, videoObjectName);
+                const videoWriteStream = fs.createWriteStream(tempVideoPath);
+                await new Promise((resolve, reject) => {
+                    videoStream.pipe(videoWriteStream);
+                    videoWriteStream.on('finish', resolve);
+                    videoWriteStream.on('error', reject);
+                });
+                await this.extractThumbnail(tempVideoPath, tempThumbnailPath, timePosition);
+                const thumbnailStream = fs.createReadStream(tempThumbnailPath);
+                await this.client.putObject(this.bucketName, thumbnailObjectName, thumbnailStream);
+                const thumbnailUrl = await this.getFileUrl(thumbnailObjectName);
+                logger_1.default.log(`Generated thumbnail for ${videoObjectName} at ${timePosition}`);
+                return { thumbnailUrl, thumbnailObjectName };
+            }
+            finally {
+                this.cleanupTempFiles([tempVideoPath, tempThumbnailPath]);
+            }
+        }
+        catch (error) {
+            logger_1.default.error(`Error generating video thumbnail: ${error.message}`);
+            throw error;
+        }
+    }
+    async extractThumbnail(inputPath, outputPath, timePosition) {
+        return new Promise((resolve, reject) => {
+            const ffmpeg = (0, child_process_1.spawn)('ffmpeg', [
+                '-i', inputPath,
+                '-ss', timePosition,
+                '-vframes', '1',
+                '-q:v', '2',
+                '-y',
+                outputPath
+            ]);
+            let stderr = '';
+            ffmpeg.stderr.on('data', (data) => {
+                stderr += data.toString();
+            });
+            ffmpeg.on('close', (code) => {
+                if (code === 0) {
+                    resolve();
+                }
+                else {
+                    reject(new Error(`FFmpeg failed with code ${code}: ${stderr}`));
+                }
+            });
+            ffmpeg.on('error', (error) => {
+                reject(new Error(`FFmpeg error: ${error.message}`));
+            });
+        });
+    }
+    cleanupTempFiles(filePaths) {
+        filePaths.forEach(filePath => {
+            try {
+                if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                }
+            }
+            catch (error) {
+                logger_1.default.error(`Error cleaning up temp file ${filePath}: ${error.message}`);
+            }
+        });
+    }
+    async generateVideoThumbnails(videoObjectNames, timePosition = '00:00:01') {
+        const results = [];
+        for (const videoObjectName of videoObjectNames) {
+            try {
+                const result = await this.generateVideoThumbnail(videoObjectName, timePosition);
+                results.push({
+                    videoObjectName,
+                    ...result
+                });
+            }
+            catch (error) {
+                logger_1.default.error(`Failed to generate thumbnail for ${videoObjectName}: ${error.message}`);
+                results.push({
+                    videoObjectName,
+                    thumbnailUrl: '',
+                    thumbnailObjectName: `${videoObjectName}_thumbnail.jpg`,
+                    error: error.message
+                });
+            }
+        }
+        return results;
     }
 }
 exports.MinioLogic = new _MinioLogic();

@@ -21,8 +21,17 @@ declare class MultipartUploadAbortDto {
     objectName: string;
     uploadId: string;
 }
-declare class PostPresignedUrlRequestDto {
+export declare class PostPresignedUrlRequestDto {
     fileName: string;
+    fileType: string;
+}
+declare class GenerateThumbnailDto {
+    videoObjectName: string;
+    timePosition?: string;
+}
+declare class GenerateThumbnailsDto {
+    videoObjectNames: string[];
+    timePosition?: string;
 }
 export declare class MinioController {
     uploadFile(file: Express.Multer.File): {
@@ -56,6 +65,18 @@ export declare class MinioController {
         url: string;
         objectName: string;
         formData: any;
+    }>;
+    generateThumbnail(body: GenerateThumbnailDto): Promise<{
+        thumbnailUrl: string;
+        thumbnailObjectName: string;
+    }>;
+    generateThumbnails(body: GenerateThumbnailsDto): Promise<{
+        results: {
+            videoObjectName: string;
+            thumbnailUrl: string;
+            thumbnailObjectName: string;
+            error?: string;
+        }[];
     }>;
 }
 export {};

@@ -1,3 +1,4 @@
+import { PostPresignedUrlRequestDto } from 'src/controller/minio.controller';
 declare class _MinioLogic {
     private readonly client;
     private readonly bucketName;
@@ -20,11 +21,23 @@ declare class _MinioLogic {
     abortMultipartUpload(objectName: string, uploadId: string): Promise<void>;
     deleteFile(objectName: string): Promise<void>;
     listFiles(prefix?: string, recursive?: boolean): Promise<string[]>;
-    generatePostPresignedUrl(fileName: string): Promise<{
+    generatePostPresignedUrl(body: PostPresignedUrlRequestDto): Promise<{
         url: string;
         objectName: string;
         formData: any;
     }>;
+    generateVideoThumbnail(videoObjectName: string, timePosition?: string): Promise<{
+        thumbnailUrl: string;
+        thumbnailObjectName: string;
+    }>;
+    private extractThumbnail;
+    private cleanupTempFiles;
+    generateVideoThumbnails(videoObjectNames: string[], timePosition?: string): Promise<Array<{
+        videoObjectName: string;
+        thumbnailUrl: string;
+        thumbnailObjectName: string;
+        error?: string;
+    }>>;
 }
 export declare const MinioLogic: _MinioLogic;
 export {};
